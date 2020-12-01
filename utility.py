@@ -18,18 +18,26 @@ def readInputData(InputFile):
         print ('cannot open the file: ', InputFile)
         sys.exit(1)
     else:
-        finDA = open(InputFile, "r")
-        for line in finDA:
+        # finDA = open(InputFile, "r")
+        
+        for line in f:
             # ignore empty or comment lines
             if line.isspace() or line.startswith("#"):
                 continue
 
             # allow colon ":" in input dictionary for convenience
             param, value = line.strip().replace(':',' ').split(None, 1)
+            try:
+                value = float(value)
+            except:
+                pass
+            else:
+                if value.is_integer():
+                    value = int(value)
             paramDict[param] = value
-            
-            f.close()
+        f.close()
     return paramDict
+
 
 def chmkdir(dirs):
     for name in dirs:
@@ -72,4 +80,12 @@ def read2D(path):
         line = np.array(line)
         c[i-1]= line.reshape(10,50,3)
     return c
-        
+
+class a():
+    def __init__(self):
+        self.b=1
+
+
+if __name__=='__main__':
+    pass
+    

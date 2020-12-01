@@ -9,101 +9,111 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 from torch.autograd import Variable
-
-#my pkgs
-import utility
+from torch.utils.data import Dataset, DataLoader
+import math
 
 
 class cnn2(nn.Module):
-    def __init__(self):
+    def __init__(self, data):
         super(cnn2, self).__init__()
-        #self.l1 = nn.Conv2d(3, 8, 3, padding=2)
-        #self.l2 = nn.Conv2d(8, 15, 3, padding=2)
-        #self.l3 = nn.Conv2d(15, 9, 3, padding=2)
-        self.l1 = nn.Conv2d(3, 8, 3, padding=1)
-        self.l2 = nn.Conv2d(8, 15, 3, padding=1)
-        self.l3 = nn.Conv2d(15, 9, 3, padding=1)
-        self.l4 = nn.Conv2d(9, 3, 3, padding=1)
+
+        self.l = nn.Linear(1, data.meshy)
+        self.c1 = nn.Conv2d(3, 8, 3, padding=1)
+        self.c2 = nn.Conv2d(8, 15, 3, padding=1)
+        self.c3 = nn.Conv2d(15, 9, 3, padding=1)
+        self.c4 = nn.Conv2d(9, 3, 3, padding=1)
         self._initialize_weights()
         self.relu = nn.ReLU()
-        #self.pool = nn.MaxPool2d(3,stride=1)
-        #self.BC1 = 
+
 
     def forward(self, x):
-        x = self.relu(self.l1(x))
-        x = self.relu(self.l2(x))
-        x = self.relu(self.l3(x))
-        x = self.l4(x)
         '''
-        v = self.relu(self.l1(v))
-        v = self.relu(self.l2(v))
-        v = self.relu(self.l3(v))
-        v = self.l4(v)
-        p = self.relu(self.l1(p))
-        p = self.relu(self.l2(p))
-        p = self.relu(self.l3(p))
-        p = self.l4(p)
+        input shape [seq_len,channel,meshx,1]
         '''
-        return x[:,0,:,:],x[:,1,:,:],x[:,2,:,:]
-
-    def _initialize_weights(self):
-        init.kaiming_normal_(self.l1.weight, mode='fan_out', nonlinearity='relu')
-        init.kaiming_normal_(self.l2.weight, mode='fan_out', nonlinearity='relu')
-        init.kaiming_normal_(self.l3.weight, mode='fan_out', nonlinearity='relu')
-        init.kaiming_normal_(self.l4.weight)
-
-class NSLSTM(nn.Module):
-    '''
-    LSTM for 2D NS equation, combine 3 functions
-    '''
-    def __init__(self, in_size, out_size, layer):
-        super(NSLSTM, self).__init__()
-        '''
-        self.in_size = in_size
-        self.out_size = out_size
-        '''
-        self.unet = nn.LSTM(in_size, out_size, layer)
-        self.vnet = nn.LSTM(in_size, out_size, layer)
-        self.pnet = nn.LSTM(in_size, out_size, layer)
-
-    def forward(self, uin, vin, pin, hn, cn):
-        u,_=self.unet(uin,(hn,cn))
-        v,_=self.vnet(vin,(hn,cn))
-        p,_=self.pnet(pin,(hn,cn))
-        return u,v,p
-
-class CNNLSTM(nn.Module):
-    def __init__(self,seq_len,meshx,meshy):
-        super(CNNLSTM, self).__init__()
-        self.seq_len = seq_len
-        self.meshx = meshx
-        self.meshy = meshy
-        self.ul = nn.Linear(1, meshy)
-        self.vl = nn.Linear(1, meshy)
-        self.pl = nn.Linear(1, meshy)
-        self.c1 = nn.Conv2d(3, 8,3,padding=1)
-        self.c2 = nn.Conv2d(8,15,3,padding=1)
-        self.c3 = nn.Conv2d(15,8,3,padding=1)
-        self.c4 = nn.Conv2d(8, 3,3,padding=1)
-        self.ulstm = nn.LSTM(meshx*meshy,meshx*meshy,1)
-        self.vlstm = nn.LSTM(meshx*meshy,meshx*meshy,1)
-        self.plstm = nn.LSTM(meshx*meshy,meshx*meshy,1)
-        self.relu = nn.ReLU()
-        self._initialize_weights()
-        self.pool = nn.MaxPool2d(3,stride=1)
-    def forward(self,ubc,vbc,pbc,uic,vic,pic):
-        '''
-        BC:[seq_len,meshx,1], IC:[1,1,meshx*meshy]
-        '''
-        u = self.ul(ubc).view(self.seq_len, 1, self.meshx, self.meshy)
-        v = self.vl(vbc).view(self.seq_len, 1, self.meshx, self.meshy)
-        p = self.pl(pbc).view(self.seq_len, 1, self.meshx, self.meshy)
-        x = torch.cat((u,v,p),1)
+        x = self.l(x)
         x = self.relu(self.c1(x))
         x = self.relu(self.c2(x))
         x = self.relu(self.c3(x))
         x = self.c4(x)
-        u,v,p = x[:,0,:,:].view(self.seq_len,1,-1),x[:,1,:,:].view(self.seq_len,1,-1),x[:,2,:,:].view(self.seq_len,1,-1)
+        
+        return x[:,0,:,:],x[:,1,:,:],x[:,2,:,:]
+
+    def _initialize_weights(self):
+        init.kaiming_normal_(self.c1.weight, mode='fan_out', nonlinearity='relu')
+        init.kaiming_normal_(self.c2.weight, mode='fan_out', nonlinearity='relu')
+        init.kaiming_normal_(self.c3.weight, mode='fan_out', nonlinearity='relu')
+        init.kaiming_normal_(self.c4.weight)
+
+
+class NSLSTM(nn.Module):
+    '''
+        self.in_size = in_size  
+        self.out_size = out_size
+    '''
+    def __init__(self, in_size, out_size):
+        super(NSLSTM, self).__init__()
+        self.unet = nn.LSTM(in_size, out_size, 3)
+        self.vnet = nn.LSTM(in_size, out_size, 3)
+        self.pnet = nn.LSTM(in_size, out_size, 3)
+        self.uh1 = nn.Linear(in_size, out_size)
+        self.vh1 = nn.Linear(in_size, out_size)
+        self.ph1 = nn.Linear(in_size, out_size)
+        
+
+    def forward(self, uin, vin, pin,uh,vh,ph):
+        uh = self.uh1(uh)
+        vh = self.vh1(vh)
+        ph = self.ph1(ph)
+        u,_=self.unet(uin,(uh,uh))
+        v,_=self.vnet(vin,(vh,vh))
+        p,_=self.pnet(pin,(ph,ph))
+        return u,v,p
+
+class CNNLSTM(nn.Module):
+    def __init__(self, pd):
+        super(CNNLSTM, self).__init__()
+        self.batch_size = pd.batch_size
+        self.seq_len = pd.seq_len
+        self.meshx = pd.meshx
+        self.meshy = pd.meshy
+        self.ul = nn.Linear(1, self.meshy)
+        self.vl = nn.Linear(1, self.meshy)
+        self.pl = nn.Linear(1, self.meshy)
+        self.c1 = nn.Conv3d(3, 8,kernel_size=(1,3,3),padding=(0,1,1))
+        self.c2 = nn.Conv3d(8,15,kernel_size=(1,3,3),padding=(0,1,1))
+        self.c3 = nn.Conv3d(15,8,kernel_size=(1,3,3),padding=(0,1,1))
+        self.c4 = nn.Conv3d(8, 3,kernel_size=(1,3,3),padding=(0,1,1))
+        self.ulstm = nn.LSTM(self.meshx*self.meshy,self.meshx*self.meshy,1,batch_first=True)
+        self.vlstm = nn.LSTM(self.meshx*self.meshy,self.meshx*self.meshy,1,batch_first=True)
+        self.plstm = nn.LSTM(self.meshx*self.meshy,self.meshx*self.meshy,1,batch_first=True)
+        self.relu = nn.ReLU()
+        self._initialize_weights()
+        self.pool = nn.MaxPool2d(3,stride=1)
+        self.ux = nn.Parameter(torch.randn(1,1,self.meshx*self.meshy))
+        self.vx = nn.Parameter(torch.randn(1,1,self.meshx*self.meshy))
+        self.px = nn.Parameter(torch.randn(1,1,self.meshx*self.meshy))
+        
+
+    def forward(self,ubc,vbc,pbc):
+        '''
+        BC:[seq_len,meshx,1]
+        '''
+        u = self.ul(ubc)
+        v = self.vl(vbc)
+        p = self.pl(pbc)
+        x = torch.cat((u,v,p),1)
+        
+        x = self.relu(self.c1(x))
+
+        x = self.relu(self.c2(x))
+        x = self.relu(self.c3(x))
+        x = self.c4(x)
+        u,v,p = x[:,0].view(self.batch_size,self.seq_len,-1),x[:,1].view(self.batch_size,self.seq_len,-1),x[:,2].view(self.batch_size,self.seq_len,-1)
+        
+        uic =self.ux.repeat([1,self.batch_size,1])
+        vic =self.vx.repeat([1,self.batch_size,1])
+        pic =self.px.repeat([1,self.batch_size,1])
+        
         u,_ = self.ulstm(u,(uic,uic))
         v,_ = self.vlstm(v,(vic,vic))
         p,_ = self.plstm(p,(pic,pic))
@@ -126,21 +136,6 @@ class CNNLSTM(nn.Module):
         init.kaiming_normal_(self.c3.weight, mode='fan_out', nonlinearity='relu')
         init.kaiming_normal_(self.c4.weight)
 
-
-def zLD(x,num_BC):
-    '''
-    Overwrite Loss on Dirichlet Boundarys to Zeros
-    '''
-    for i in num_BC:
-        if i == 0:
-            x[:,:,0] = 0*x[:,:,0]
-        elif i == 1:
-            x[:,:,-1] = 0*x[:,:,-1]
-        elif i == 2:
-            x[:,0,:] = 0*x[:,0,:]
-        elif i == 3:
-            x[:,-1,:] = 0*x[:,-1,:]
-    return x
 
 #######################################################################
 
@@ -233,11 +228,28 @@ class ConvLSTM(nn.Module):
         return outputs, (x, new_c)
 
 
+
+
 if __name__=='__main__':
-    net = ConvLSTM(3,[3,3],3,200,torch.linspace(0,199,200,dtype=int))
-    inp = torch.ones((1,3,5,5))
-    out=net(inp)
-    loss = nn.MSELoss()
+    
+    net = CNNLSTM(3)
+    optimizer = torch.optim.Adam(net.parameters(), lr=1)
+    loss_f = nn.MSELoss()
+    data = mydata()
+    dataloader = DataLoader(dataset=data, batch_size=3, shuffle=True, num_workers=3)
+    for i in range(10):
+        for inp in dataloader:
+            ubc,vbc,pbc = inp
+            u,v,p,uic = net(ubc,vbc,pbc)
+            print(uic[0,0,0])
+            u = u.view(3,100,11,51)
+            l1=loss_f(u,torch.zeros(3,100,11,51))
+            l1.backward()
+            optimizer.step()
+    torch.save(net.state_dict(),'test')
+    net2 = CNNLSTM(1)
+    net2.load_state_dict(torch.load('test'))
+    print()
 
 
 
